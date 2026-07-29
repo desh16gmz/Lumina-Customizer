@@ -11,12 +11,14 @@ import { themes, fontFamilies } from './lib/themes';
 
 import { StepForm } from './components/StepForm';
 import { StepPhoneLock } from './components/StepPhoneLock';
+import { StepEnvelope } from './components/StepEnvelope';
+import { StepLetter } from './components/StepLetter';
 import { StepVisionBoard } from './components/StepVisionBoard';
 import { ThemePanel } from './components/ThemePanel';
 
 const queryClient = new QueryClient();
 
-type AppStep = 'form' | 'phone' | 'board';
+type AppStep = 'form' | 'phone' | 'envelope' | 'letter' | 'board';
 
 function LuminaryApp() {
   const [step, setStep] = useState<AppStep>('form');
@@ -31,13 +33,12 @@ function LuminaryApp() {
     if (hash) {
       const shared = shareLink.decode(hash);
       if (shared) {
-        // photos omitted in share — preserve slot count from shared data if available
         const photoCount = (shared.d as any)?.photoCount ?? 3;
         const emptyPhotos = Array(Math.min(Math.max(photoCount, 3), 5)).fill('') as string[];
         setCardData({ ...storage.getCard(), ...shared.d, photos: emptyPhotos });
         setPrefs(shared.p);
         setIsSharedView(true);
-        setStep('board');
+        setStep('phone');
       }
     }
   }, []);
@@ -46,14 +47,11 @@ function LuminaryApp() {
   useEffect(() => {
     const theme = themes.find(t => t.id === prefs.themeId) || themes[0];
     const root = document.documentElement;
-    
-    // Apply colors — map camelCase keys to CSS variable names
+
     Object.entries(theme.colors).forEach(([key, value]) => {
       const cssVar = '--' + key.replace(/([A-Z])/g, '-$1').toLowerCase();
       root.style.setProperty(cssVar, value);
-      // Also sync sidebar/popover/card-border from the theme's equivalents
     });
-    // Keep sidebar, popover, card-border in sync with card/primary
     root.style.setProperty('--sidebar', theme.colors.card);
     root.style.setProperty('--sidebar-foreground', theme.colors.cardForeground);
     root.style.setProperty('--sidebar-border', theme.colors.border);
@@ -69,7 +67,6 @@ function LuminaryApp() {
     root.style.setProperty('--destructive', '0 72% 51%');
     root.style.setProperty('--destructive-foreground', '0 0% 100%');
 
-    // Apply fonts
     const fonts = fontFamilies[prefs.fontStyle];
     root.style.setProperty('--app-font-sans', fonts.sans);
     root.style.setProperty('--app-font-serif', fonts.serif);
@@ -77,21 +74,16 @@ function LuminaryApp() {
     root.style.setProperty('--app-font-handwriting', fonts.handwriting);
   }, [prefs.themeId, prefs.fontStyle]);
 
-  // Persist local state
   const handleCardUpdate = (data: Partial<CardData>) => {
     const next = { ...cardData, ...data };
     setCardData(next);
-    if (!isSharedView) {
-      storage.saveCard(next);
-    }
+    if (!isSharedView) storage.saveCard(next);
   };
 
   const handlePrefsUpdate = (newPrefs: Partial<CardPreferences>) => {
     const next = { ...prefs, ...newPrefs };
     setPrefs(next);
-    if (!isSharedView) {
-      storage.savePrefs(next);
-    }
+    if (!isSharedView) storage.savePrefs(next);
   };
 
   const handleReset = () => {
@@ -102,32 +94,45 @@ function LuminaryApp() {
 
   return (
     <div className="min-h-[100dvh] w-full flex items-center justify-center relative overflow-hidden bg-background font-sans transition-colors duration-700">
-      {/* Decorative background blobs */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/20 rounded-full blur-[100px] pointer-events-none" />
 
-      {/* Main Content Area */}
       <main className="w-full h-full flex flex-col items-center justify-center p-4 md:p-8 z-10 min-h-[100dvh]">
         <AnimatePresence mode="wait">
           {step === 'form' && (
-            <StepForm 
+            <StepForm
               key="form"
-              cardData={cardData} 
-              onChange={handleCardUpdate} 
-              onNext={() => setStep('phone')} 
+              cardData={cardData}
+              onChange={handleCardUpdate}
+              onNext={() => setStep('phone')}
             />
           )}
           {step === 'phone' && (
-            <StepPhoneLock 
+            <StepPhoneLock
               key="phone"
-              cardData={cardData} 
-              onOpen={() => setStep('board')} 
+              cardData={cardData}
+              onOpen={() => setStep('envelope')}
+            />
+          )}
+          {step === 'envelope' && (
+            <StepEnvelope
+              key="envelope"
+              cardData={cardData}
+              onOpen={() => setStep('letter')}
+            />
+          )}
+          {step === 'letter' && (
+            <StepLetter
+              key="letter"
+              cardData={cardData}
+              onNext={() => setStep('board')}
+              onBack={() => setStep('envelope')}
             />
           )}
           {step === 'board' && (
-            <StepVisionBoard 
+            <StepVisionBoard
               key="board"
-              cardData={cardData} 
+              cardData={cardData}
               prefs={prefs}
               isSharedView={isSharedView}
               onReset={handleReset}
@@ -136,23 +141,24 @@ function LuminaryApp() {
         </AnimatePresence>
       </main>
 
-      {/* Floating Customize Button */}
-      <button
-        onClick={() => setIsPanelOpen(true)}
-        className="fixed bottom-6 right-6 z-40 bg-card border border-border shadow-2xl p-4 rounded-full text-foreground hover:bg-primary hover:text-primary-foreground transition-all flex items-center justify-center group"
-      >
-        <Paintbrush className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-      </button>
+      {/* Floating Customize Button — hide on phone/envelope/letter steps for immersion */}
+      {(step === 'form' || step === 'board') && (
+        <button
+          onClick={() => setIsPanelOpen(true)}
+          className="fixed bottom-6 right-6 z-40 bg-card border border-border shadow-2xl p-4 rounded-full text-foreground hover:bg-primary hover:text-primary-foreground transition-all flex items-center justify-center group"
+        >
+          <Paintbrush className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+        </button>
+      )}
 
-      {/* Side Panel Overlay */}
       {isPanelOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-background/20 backdrop-blur-sm z-40"
           onClick={() => setIsPanelOpen(false)}
         />
       )}
-      <ThemePanel 
-        isOpen={isPanelOpen} 
+      <ThemePanel
+        isOpen={isPanelOpen}
         onClose={() => setIsPanelOpen(false)}
         prefs={prefs}
         onUpdate={handlePrefsUpdate}

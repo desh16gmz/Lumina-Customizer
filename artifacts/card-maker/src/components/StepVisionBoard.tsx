@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
-import { Share2, RefreshCw, Heart, Sparkles, Star } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Share2, RefreshCw, Heart } from 'lucide-react';
 import { CardData, CardPreferences } from '../lib/storage';
 import { shareLink } from '../lib/shareLink';
 
@@ -11,127 +11,205 @@ interface StepVisionBoardProps {
   onReset: () => void;
 }
 
-// Floating particle component
-function FloatingParticle({ x, y, delay, duration, icon: Icon, size }: {
-  x: number; y: number; delay: number; duration: number;
-  icon: React.ElementType; size: number;
-}) {
-  return (
-    <motion.div
-      className="absolute pointer-events-none text-primary/20 select-none"
-      style={{ left: `${x}%`, top: `${y}%` }}
-      initial={{ opacity: 0, y: 0, scale: 0.5 }}
-      animate={{
-        opacity: [0, 0.6, 0.6, 0],
-        y: [-10, -60, -100],
-        scale: [0.5, 1, 0.8],
-        rotate: [0, 15, -10, 20],
-      }}
-      transition={{
-        duration,
-        delay,
-        repeat: Infinity,
-        repeatDelay: Math.random() * 4 + 2,
-        ease: 'easeOut',
-      }}
-    >
-      <Icon style={{ width: size, height: size }} />
-    </motion.div>
-  );
-}
+// ── Stagger animation helper ───────────────────────────────────────────
+const entry = (i: number, intensity: string) => {
+  const stagger = intensity === 'subtle' ? 0.06 : intensity === 'moderate' ? 0.1 : 0.16;
+  const spring =
+    intensity === 'dramatic'
+      ? { type: 'spring' as const, stiffness: 70, damping: 14, delay: i * stagger }
+      : { duration: 0.55, delay: i * stagger, ease: [0.22, 1, 0.36, 1] as const };
+  return {
+    initial: { opacity: 0, y: 36, scale: 0.94 },
+    animate: { opacity: 1, y: 0, scale: 1 },
+    transition: spring,
+  };
+};
 
-// Shimmer overlay for photo frames
-function ShimmerOverlay() {
+// ── Tape strip ─────────────────────────────────────────────────────────
+function Tape({ rotate = -3 }: { rotate?: number }) {
   return (
-    <motion.div
-      className="absolute inset-0 pointer-events-none"
+    <div
+      className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-10 w-11 h-4 rounded-sm"
       style={{
-        background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.18) 50%, transparent 60%)',
+        transform: `translateX(-50%) rotate(${rotate}deg)`,
+        background: 'hsl(var(--primary)/0.18)',
+        border: '1px solid hsl(var(--primary)/0.22)',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.07)',
       }}
-      initial={{ x: '-100%' }}
-      animate={{ x: '200%' }}
-      transition={{ duration: 1.4, delay: 1.5, ease: 'easeInOut' }}
     />
   );
 }
 
-const PARTICLES = [
-  { x: 5, y: 15, delay: 0, duration: 4, icon: Heart, size: 14 },
-  { x: 92, y: 20, delay: 1.5, duration: 5, icon: Sparkles, size: 12 },
-  { x: 15, y: 60, delay: 0.8, duration: 4.5, icon: Star, size: 10 },
-  { x: 85, y: 55, delay: 2.2, duration: 3.8, icon: Heart, size: 16 },
-  { x: 50, y: 10, delay: 1.0, duration: 5.2, icon: Sparkles, size: 11 },
-  { x: 30, y: 80, delay: 3.0, duration: 4.2, icon: Heart, size: 13 },
-  { x: 75, y: 85, delay: 0.5, duration: 4.8, icon: Star, size: 10 },
-  { x: 60, y: 40, delay: 2.8, duration: 3.5, icon: Sparkles, size: 12 },
-];
+// ── Clip icon ──────────────────────────────────────────────────────────
+function Clip({ side = 'right' }: { side?: 'left' | 'right' }) {
+  return (
+    <span
+      className="absolute -top-3 text-xl z-10 select-none"
+      style={{
+        [side]: '14px',
+        transform: `rotate(${side === 'right' ? 14 : -14}deg)`,
+        filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.18))',
+      }}
+    >
+      📎
+    </span>
+  );
+}
 
-// Animation configs
-const getEntrance = (i: number, intensity: string) => {
-  const base = { initial: { opacity: 0, y: 40, scale: 0.92 } };
-  const stagger =
-    intensity === 'subtle' ? 0.08 : intensity === 'moderate' ? 0.14 : 0.22;
-  const spring =
-    intensity === 'dramatic'
-      ? { type: 'spring' as const, stiffness: 80, damping: 16, delay: i * stagger }
-      : { duration: 0.6, delay: i * stagger, ease: [0.22, 1, 0.36, 1] as const };
-  return { ...base, animate: { opacity: 1, y: 0, scale: 1 }, transition: spring };
-};
-
-// Photo frame wrappers
-function PhotoFrame({
-  src,
-  alt,
-  frameStyle,
-  aspectClass,
-  index,
+// ── Polaroid photo frame ───────────────────────────────────────────────
+function PolaroidPhoto({
+  src, caption, rotate, useTape, useClip, clipSide, aspectClass, index,
 }: {
-  src: string;
-  alt: string;
-  frameStyle: string;
-  aspectClass: string;
-  index: number;
+  src: string; caption: string; rotate: number; useTape: boolean;
+  useClip: boolean; clipSide?: 'left' | 'right'; aspectClass: string; index: number;
 }) {
-  const rotations = [-2, 1.5, -1, 2.5, -1.5];
-  const rot = rotations[index % rotations.length];
-
-  const wrapperCls = {
-    classic: 'p-2 bg-card border border-border shadow-xl rounded-xl overflow-hidden',
-    minimal: 'rounded-2xl overflow-hidden shadow-lg',
-    floating: 'rounded-3xl overflow-hidden shadow-2xl shadow-primary/20',
-    polaroid: `p-3 pb-10 bg-white border border-gray-200 shadow-xl rounded-sm`,
-  }[frameStyle] ?? 'rounded-xl overflow-hidden shadow-lg';
-
   return (
     <motion.div
-      className={`relative group cursor-pointer ${wrapperCls}`}
-      style={frameStyle === 'polaroid' ? { transform: `rotate(${rot}deg)` } : {}}
-      whileHover={{ scale: 1.03, rotate: frameStyle === 'polaroid' ? rot * 0.5 : 0, zIndex: 10 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+      className="relative"
+      style={{ transform: `rotate(${rotate}deg)` }}
+      whileHover={{ scale: 1.04, rotate: rotate * 0.4, zIndex: 20 }}
+      transition={{ type: 'spring', stiffness: 280, damping: 22 }}
     >
-      {src ? (
-        <>
-          <img src={src} alt={alt} className={`w-full object-cover ${aspectClass}`} />
-          <ShimmerOverlay />
-        </>
-      ) : (
-        <div className={`w-full ${aspectClass} bg-muted flex items-center justify-center`}>
-          <span className="font-handwriting text-xl text-muted-foreground opacity-50">
-            a sweet memory
-          </span>
+      <div
+        className="relative rounded-[3px] overflow-visible"
+        style={{
+          background: 'hsl(var(--card))',
+          padding: '8px 8px 26px',
+          boxShadow: '0 14px 28px -8px hsl(var(--primary)/0.35)',
+        }}
+      >
+        {useTape && <Tape rotate={rotate > 0 ? -5 : -2} />}
+        {useClip && <Clip side={clipSide} />}
+
+        {/* Photo */}
+        <div className={`w-full ${aspectClass} overflow-hidden rounded-[2px] relative`}
+          style={{ background: 'hsl(var(--muted))' }}>
+          {src ? (
+            <img src={src} alt={caption} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <span className="font-handwriting text-lg text-muted-foreground opacity-50">a memory</span>
+            </div>
+          )}
+          {/* shimmer */}
+          <motion.div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.2) 50%, transparent 60%)',
+            }}
+            initial={{ x: '-100%' }}
+            animate={{ x: '250%' }}
+            transition={{ duration: 1.2, delay: 0.8 + index * 0.2, ease: 'easeInOut' }}
+          />
         </div>
-      )}
-      {/* Subtle vignette on hover */}
-      <div className="absolute inset-0 rounded-inherit bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+        {/* Caption */}
+        <div
+          className="absolute left-1/2 bottom-1.5 -translate-x-1/2 whitespace-nowrap font-handwriting text-[13px] font-semibold"
+          style={{ color: 'hsl(var(--primary))' }}
+        >
+          {caption}
+        </div>
+      </div>
     </motion.div>
   );
 }
 
+// ── Scrapbook note card ────────────────────────────────────────────────
+function NoteCard({ title, items, rotate = 0 }: { title: string; items: string[]; rotate?: number }) {
+  return (
+    <div
+      className="rounded-xl p-3.5 text-[10.5px] leading-relaxed"
+      style={{
+        background: 'hsl(var(--accent)/0.6)',
+        border: '1px solid hsl(var(--border))',
+        boxShadow: '0 8px 20px -10px hsl(var(--primary)/0.35)',
+        transform: `rotate(${rotate}deg)`,
+        color: 'hsl(var(--card-foreground))',
+      }}
+    >
+      <h4
+        className="font-handwriting text-base font-semibold text-center mb-2"
+        style={{ color: 'hsl(var(--primary))' }}
+      >
+        {title}
+      </h4>
+      <ul className="space-y-1 text-left list-none">
+        {items.map((item, i) => (
+          <li key={i} className="pl-4 relative">
+            <span className="absolute left-0 top-0.5 text-[8px]" style={{ color: 'hsl(var(--primary)/0.7)' }}>♥</span>
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ── Full-width quote card ──────────────────────────────────────────────
+function QuoteCard({ text }: { text: string }) {
+  return (
+    <div
+      className="relative rounded-xl p-5 leading-relaxed font-serif italic text-[13px]"
+      style={{
+        background: 'hsl(var(--accent)/0.4)',
+        color: 'hsl(var(--foreground))',
+        boxShadow: '0 6px 18px -8px hsl(var(--primary)/0.25)',
+      }}
+    >
+      <span
+        className="absolute top-1 left-2 font-serif text-4xl leading-none select-none"
+        style={{ color: 'hsl(var(--primary)/0.3)' }}
+      >"</span>
+      <span
+        className="absolute bottom-0 right-2 font-serif text-4xl leading-none rotate-180 select-none"
+        style={{ color: 'hsl(var(--primary)/0.3)' }}
+      >"</span>
+      <p className="relative z-10 px-4">{text}</p>
+    </div>
+  );
+}
+
+// ── Ribbon banner ──────────────────────────────────────────────────────
+function RibbonBanner({ sender }: { sender: string }) {
+  return (
+    <div
+      className="rounded-xl p-4 text-center text-[11px] font-medium tracking-wide leading-relaxed"
+      style={{
+        background: 'hsl(var(--primary))',
+        color: 'hsl(var(--primary-foreground))',
+        boxShadow: '0 8px 24px -8px hsl(var(--primary)/0.5)',
+      }}
+    >
+      <p>every moment with you is my favorite</p>
+      <p className="font-handwriting text-xl mt-1">
+        I Love You 💕
+        {sender ? <span className="text-base opacity-80"> — {sender}</span> : null}
+      </p>
+    </div>
+  );
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+const CAPTIONS = ['My Favorite', 'My Happiness', 'You + Me', 'The Best Part', 'Always You'];
+const ROTATIONS = [-4, 3, -3, 2.5, -2];
+const TAPE_SLOTS = [true, false, true, false, true];
+const CLIP_SLOTS = [false, true, false, true, false];
+const CLIP_SIDES: ('left' | 'right')[] = ['right', 'left', 'right', 'left', 'right'];
+const ASPECT_CLASSES = ['aspect-[4/5]', 'aspect-square', 'aspect-[3/4]', 'aspect-[4/5]', 'aspect-square'];
+
+const NOTE_1 = {
+  title: 'Reasons Why I ♥ You',
+  items: ['You understand me like no one else', 'You make every day worth it', "You're my peace in the chaos", "You're my today & all my tomorrows"],
+};
+const NOTE_2 = {
+  title: 'With You I…',
+  items: ['Laugh a little louder', 'Worry a little less', 'Smile a lot more', 'Love a lot deeper'],
+};
+const QUOTE = "You're not just the person I chose — you're the one I'd choose again, every single time.";
+
 export function StepVisionBoard({ cardData, prefs, isSharedView, onReset }: StepVisionBoardProps) {
   const [copied, setCopied] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ container: containerRef });
-  const bgY = useTransform(scrollYProgress, [0, 1], ['0%', '6%']);
 
   const handleShare = () => {
     const hash = shareLink.encode(cardData, prefs);
@@ -142,312 +220,177 @@ export function StepVisionBoard({ cardData, prefs, isSharedView, onReset }: Step
     });
   };
 
-  const photos = cardData.photos.filter(Boolean);
-  const photoCount = cardData.photos.length; // 3–5 (may include empties)
+  const photos = cardData.photos; // 3–5 slots
+  const photoCount = photos.length;
 
-  // Build photo layout configs based on count
-  const getPhotoLayout = () => {
-    // Returns array of { photo, aspectClass, colSpan }
-    const slots = cardData.photos;
-    if (photoCount <= 3) {
-      return [
-        { photo: slots[0], aspectClass: 'aspect-[4/5]', wide: false },
-        { photo: slots[1], aspectClass: 'aspect-square', wide: false },
-        { photo: slots[2], aspectClass: 'aspect-[3/4]', wide: false },
-      ];
-    } else if (photoCount === 4) {
-      return [
-        { photo: slots[0], aspectClass: 'aspect-[4/5]', wide: false },
-        { photo: slots[1], aspectClass: 'aspect-square', wide: false },
-        { photo: slots[2], aspectClass: 'aspect-[3/2]', wide: true },
-        { photo: slots[3], aspectClass: 'aspect-[4/5]', wide: false },
-      ];
-    } else {
-      return [
-        { photo: slots[0], aspectClass: 'aspect-[4/5]', wide: false },
-        { photo: slots[1], aspectClass: 'aspect-square', wide: false },
-        { photo: slots[2], aspectClass: 'aspect-[3/2]', wide: true },
-        { photo: slots[3], aspectClass: 'aspect-[3/4]', wide: false },
-        { photo: slots[4], aspectClass: 'aspect-square', wide: false },
-      ];
-    }
-  };
+  // Build board items: interleave photos with note cards, quote, ribbon
+  // We render in 2-column masonry CSS. Layout:
+  // left col: p0, note1, p2, (p4 if exists)
+  // right col: note2, p1, p3, quote(full), ribbon(full)
+  // We just output items in source order and let CSS masonry handle columns.
 
-  const photoLayout = getPhotoLayout();
+  const itemDelay = (i: number) => entry(i, prefs.animation);
 
   return (
-    <div className="w-full min-h-screen flex flex-col items-center relative overflow-hidden">
-      {/* Animated background blobs */}
+    <div className="w-full max-w-lg mx-auto px-4 py-10 flex flex-col items-center gap-6 relative">
+      {/* Floating bg blobs */}
+      <div className="fixed top-0 left-0 w-full h-full pointer-events-none -z-10 overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/8 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-secondary/15 rounded-full blur-[90px]" />
+      </div>
+
+      {/* Action bar */}
       <motion.div
-        className="fixed inset-0 pointer-events-none z-0"
-        style={{ y: bgY }}
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-wrap items-center justify-center gap-3"
       >
-        <div className="absolute top-[-20%] left-[-15%] w-[55%] h-[55%] bg-primary/8 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-15%] right-[-10%] w-[50%] h-[50%] bg-secondary/15 rounded-full blur-[100px]" />
-        <div className="absolute top-[40%] left-[30%] w-[40%] h-[40%] bg-accent/10 rounded-full blur-[90px]" />
+        {!isSharedView && (
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-full font-semibold text-sm shadow-lg shadow-primary/25 hover:-translate-y-0.5 hover:shadow-primary/40 active:translate-y-0 transition-all"
+          >
+            <Share2 className="w-4 h-4" />
+            {copied ? '✓ Link Copied!' : 'Share this Surprise'}
+          </button>
+        )}
+        <button
+          onClick={onReset}
+          className="flex items-center gap-2 bg-secondary text-secondary-foreground px-5 py-2.5 rounded-full font-semibold text-sm hover:bg-secondary/80 hover:-translate-y-0.5 transition-all"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Make Another
+        </button>
       </motion.div>
 
-      {/* Floating particles */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        {PARTICLES.map((p, i) => (
-          <FloatingParticle key={i} {...p} />
+      {/* Board header */}
+      <motion.div {...itemDelay(0)} className="text-center">
+        <p
+          className="font-handwriting text-2xl mb-1"
+          style={{ color: 'hsl(var(--foreground))' }}
+        >
+          every little moment, with you
+        </p>
+        <p className="text-[10px] uppercase tracking-[2px] text-muted-foreground">
+          pinned, just for {cardData.recipientName || 'you'}
+        </p>
+      </motion.div>
+
+      {/* Masonry grid */}
+      <div className="w-full board-masonry">
+
+        {/* Photo 0 — focus, tape */}
+        <motion.div {...itemDelay(1)} className="board-masonry-item">
+          <PolaroidPhoto
+            src={photos[0]}
+            caption={CAPTIONS[0]}
+            rotate={ROTATIONS[0]}
+            useTape={TAPE_SLOTS[0]}
+            useClip={CLIP_SLOTS[0]}
+            clipSide={CLIP_SIDES[0]}
+            aspectClass={ASPECT_CLASSES[0]}
+            index={0}
+          />
+        </motion.div>
+
+        {/* Note card 1 */}
+        <motion.div {...itemDelay(2)} className="board-masonry-item">
+          <NoteCard title={NOTE_1.title} items={NOTE_1.items} rotate={2} />
+        </motion.div>
+
+        {/* Photo 1 — focus, clip */}
+        <motion.div {...itemDelay(3)} className="board-masonry-item">
+          <PolaroidPhoto
+            src={photos[1]}
+            caption={CAPTIONS[1]}
+            rotate={ROTATIONS[1]}
+            useTape={TAPE_SLOTS[1]}
+            useClip={CLIP_SLOTS[1]}
+            clipSide={CLIP_SIDES[1]}
+            aspectClass={ASPECT_CLASSES[1]}
+            index={1}
+          />
+        </motion.div>
+
+        {/* Photo 2 — focus, tape */}
+        <motion.div {...itemDelay(4)} className="board-masonry-item">
+          <PolaroidPhoto
+            src={photos[2]}
+            caption={CAPTIONS[2]}
+            rotate={ROTATIONS[2]}
+            useTape={TAPE_SLOTS[2]}
+            useClip={CLIP_SLOTS[2]}
+            clipSide={CLIP_SIDES[2]}
+            aspectClass={ASPECT_CLASSES[2]}
+            index={2}
+          />
+        </motion.div>
+
+        {/* Note card 2 */}
+        <motion.div {...itemDelay(5)} className="board-masonry-item">
+          <NoteCard title={NOTE_2.title} items={NOTE_2.items} rotate={-2} />
+        </motion.div>
+
+        {/* Photo 3 (if exists) */}
+        {photoCount >= 4 && (
+          <motion.div {...itemDelay(6)} className="board-masonry-item">
+            <PolaroidPhoto
+              src={photos[3]}
+              caption={CAPTIONS[3]}
+              rotate={ROTATIONS[3]}
+              useTape={TAPE_SLOTS[3]}
+              useClip={CLIP_SLOTS[3]}
+              clipSide={CLIP_SIDES[3]}
+              aspectClass={ASPECT_CLASSES[3]}
+              index={3}
+            />
+          </motion.div>
+        )}
+
+        {/* Photo 4 (if exists) */}
+        {photoCount >= 5 && (
+          <motion.div {...itemDelay(7)} className="board-masonry-item">
+            <PolaroidPhoto
+              src={photos[4]}
+              caption={CAPTIONS[4]}
+              rotate={ROTATIONS[4]}
+              useTape={TAPE_SLOTS[4]}
+              useClip={CLIP_SLOTS[4]}
+              clipSide={CLIP_SIDES[4]}
+              aspectClass={ASPECT_CLASSES[4]}
+              index={4}
+            />
+          </motion.div>
+        )}
+
+        {/* Full-width quote */}
+        <motion.div {...itemDelay(8)} className="board-masonry-full">
+          <QuoteCard text={QUOTE} />
+        </motion.div>
+
+        {/* Full-width ribbon */}
+        <motion.div {...itemDelay(9)} className="board-masonry-full">
+          <RibbonBanner sender={cardData.senderName} />
+        </motion.div>
+      </div>
+
+      {/* Floating hearts */}
+      <motion.div
+        className="fixed bottom-10 right-6 flex flex-col gap-1 items-center pointer-events-none"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 2 }}
+      >
+        {[0, 1, 2].map((i) => (
+          <motion.div
+            key={i}
+            animate={{ scale: [1, 1.4, 1] }}
+            transition={{ duration: 1.2, delay: i * 0.25, repeat: Infinity, repeatDelay: 1.5 }}
+          >
+            <Heart className="w-3 h-3 fill-primary/40 text-primary/40" />
+          </motion.div>
         ))}
-      </div>
-
-      {/* Main content */}
-      <div className="relative z-10 w-full max-w-3xl mx-auto px-4 py-10 flex flex-col items-center gap-8">
-
-        {/* ── Action bar ── */}
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="flex flex-wrap items-center justify-center gap-3"
-        >
-          {!isSharedView && (
-            <button
-              onClick={handleShare}
-              className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-full font-semibold text-sm shadow-lg shadow-primary/25 hover:-translate-y-0.5 hover:shadow-primary/40 active:translate-y-0 transition-all"
-            >
-              <Share2 className="w-4 h-4" />
-              {copied ? '✓ Link Copied!' : 'Share this Surprise'}
-            </button>
-          )}
-          <button
-            onClick={onReset}
-            className="flex items-center gap-2 bg-secondary text-secondary-foreground px-5 py-2.5 rounded-full font-semibold text-sm hover:bg-secondary/80 hover:-translate-y-0.5 transition-all"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Make Another
-          </button>
-        </motion.div>
-
-        {/* ── Hero header — recipient name ── */}
-        <motion.div
-          {...getEntrance(0, prefs.animation)}
-          className="w-full text-center relative py-8 px-6"
-        >
-          {/* Decorative rule */}
-          <div className="flex items-center gap-4 mb-6 justify-center">
-            <motion.div
-              className="h-px flex-1 max-w-[80px] bg-gradient-to-r from-transparent to-primary/40"
-              initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: 0.3, duration: 0.8 }}
-            />
-            <motion.div
-              animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
-              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-            >
-              <Heart className="w-5 h-5 text-primary fill-primary/30" />
-            </motion.div>
-            <motion.div
-              className="h-px flex-1 max-w-[80px] bg-gradient-to-l from-transparent to-primary/40"
-              initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: 0.3, duration: 0.8 }}
-            />
-          </div>
-
-          <p className="text-xs uppercase tracking-[0.3em] text-primary font-semibold mb-3 opacity-80">
-            This is for
-          </p>
-          <h1 className="font-handwriting text-6xl md:text-7xl text-foreground leading-tight">
-            {cardData.recipientName || 'Someone Special'}
-          </h1>
-
-          {/* Sparkle accents */}
-          <motion.div
-            className="absolute top-6 right-[15%] text-primary/30"
-            animate={{ rotate: [0, 360] }}
-            transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-          >
-            <Sparkles className="w-6 h-6" />
-          </motion.div>
-          <motion.div
-            className="absolute bottom-6 left-[12%] text-primary/20"
-            animate={{ rotate: [0, -360] }}
-            transition={{ duration: 12, repeat: Infinity, ease: 'linear' }}
-          >
-            <Star className="w-5 h-5" />
-          </motion.div>
-        </motion.div>
-
-        {/* ── Photo masonry grid ── */}
-        <div className="w-full">
-          {photoCount <= 3 ? (
-            /* Three photos: 2-col masonry */
-            <div className="masonry-board">
-              {photoLayout.map((item, i) => (
-                <motion.div key={i} {...getEntrance(i + 1, prefs.animation)} className="masonry-board-item">
-                  <PhotoFrame
-                    src={item.photo}
-                    alt={`Memory ${i + 1}`}
-                    frameStyle={prefs.frameStyle}
-                    aspectClass={item.aspectClass}
-                    index={i}
-                  />
-                </motion.div>
-              ))}
-            </div>
-          ) : photoCount === 4 ? (
-            /* Four photos: featured wide + 3 small */
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                {[0, 1].map((i) => (
-                  <motion.div key={i} {...getEntrance(i + 1, prefs.animation)}>
-                    <PhotoFrame
-                      src={photoLayout[i].photo}
-                      alt={`Memory ${i + 1}`}
-                      frameStyle={prefs.frameStyle}
-                      aspectClass={photoLayout[i].aspectClass}
-                      index={i}
-                    />
-                  </motion.div>
-                ))}
-              </div>
-              <motion.div {...getEntrance(3, prefs.animation)}>
-                <PhotoFrame
-                  src={photoLayout[2].photo}
-                  alt="Memory 3"
-                  frameStyle={prefs.frameStyle}
-                  aspectClass={photoLayout[2].aspectClass}
-                  index={2}
-                />
-              </motion.div>
-              <motion.div {...getEntrance(4, prefs.animation)}>
-                <PhotoFrame
-                  src={photoLayout[3].photo}
-                  alt="Memory 4"
-                  frameStyle={prefs.frameStyle}
-                  aspectClass={photoLayout[3].aspectClass}
-                  index={3}
-                />
-              </motion.div>
-            </div>
-          ) : (
-            /* Five photos: mosaic */
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                {[0, 1].map((i) => (
-                  <motion.div key={i} {...getEntrance(i + 1, prefs.animation)}>
-                    <PhotoFrame
-                      src={photoLayout[i].photo}
-                      alt={`Memory ${i + 1}`}
-                      frameStyle={prefs.frameStyle}
-                      aspectClass={photoLayout[i].aspectClass}
-                      index={i}
-                    />
-                  </motion.div>
-                ))}
-              </div>
-              <motion.div {...getEntrance(3, prefs.animation)}>
-                <PhotoFrame
-                  src={photoLayout[2].photo}
-                  alt="Memory 3"
-                  frameStyle={prefs.frameStyle}
-                  aspectClass={photoLayout[2].aspectClass}
-                  index={2}
-                />
-              </motion.div>
-              <div className="grid grid-cols-2 gap-4">
-                {[3, 4].map((i) => (
-                  <motion.div key={i} {...getEntrance(i + 1, prefs.animation)}>
-                    <PhotoFrame
-                      src={photoLayout[i].photo}
-                      alt={`Memory ${i + 1}`}
-                      frameStyle={prefs.frameStyle}
-                      aspectClass={photoLayout[i].aspectClass}
-                      index={i}
-                    />
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Message card ── */}
-        <motion.div
-          {...getEntrance(photoCount + 2, prefs.animation)}
-          className="w-full"
-        >
-          <div className="relative bg-card text-card-foreground p-8 md:p-10 rounded-3xl shadow-2xl shadow-primary/10 border border-border overflow-hidden">
-            {/* Decorative quote marks */}
-            <motion.div
-              className="absolute top-4 left-5 font-serif text-7xl text-primary/15 leading-none select-none"
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
-            >
-              "
-            </motion.div>
-            <motion.div
-              className="absolute bottom-0 right-5 font-serif text-7xl text-primary/15 leading-none select-none rotate-180"
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.7, type: 'spring', stiffness: 200 }}
-            >
-              "
-            </motion.div>
-
-            {/* Background accent blob */}
-            <div className="absolute -bottom-8 -right-8 w-40 h-40 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
-
-            <div className="relative z-10 pt-4 pb-4 font-serif text-lg leading-relaxed whitespace-pre-wrap">
-              {cardData.message}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* ── Sender ribbon ── */}
-        <motion.div
-          {...getEntrance(photoCount + 3, prefs.animation)}
-          className="w-full"
-        >
-          <div className="relative bg-foreground text-background p-7 rounded-2xl text-center shadow-xl overflow-hidden">
-            {/* Animated heart decoration */}
-            <motion.div
-              className="absolute -bottom-8 -left-8 w-32 h-32 text-background/10"
-              animate={{ rotate: [0, 360] }}
-              transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-            >
-              <Heart className="w-full h-full" />
-            </motion.div>
-            <motion.div
-              className="absolute -top-6 -right-6 w-24 h-24 text-background/5"
-              animate={{ rotate: [0, -360] }}
-              transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
-            >
-              <Sparkles className="w-full h-full" />
-            </motion.div>
-
-            <p className="text-xs uppercase tracking-[0.2em] opacity-60 mb-2 relative z-10">
-              With all my love
-            </p>
-            <h2 className="font-display font-bold text-4xl relative z-10">
-              {cardData.senderName || 'Someone Who Cares'}
-            </h2>
-
-            {/* Heart pulse */}
-            <motion.div
-              className="flex justify-center mt-4 gap-1.5 relative z-10"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-            >
-              {[0, 1, 2].map((i) => (
-                <motion.div
-                  key={i}
-                  animate={{ scale: [1, 1.4, 1] }}
-                  transition={{ duration: 1.2, delay: i * 0.2, repeat: Infinity, repeatDelay: 1 }}
-                >
-                  <Heart className="w-3.5 h-3.5 fill-background/40 text-background/40" />
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* Bottom spacer */}
-        <div className="h-8" />
-      </div>
+      </motion.div>
     </div>
   );
 }

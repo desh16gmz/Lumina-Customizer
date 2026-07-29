@@ -1,0 +1,269 @@
+/* ---------- finalize: upload photos, save row, build link — resumable & retried ---------- */
+let finalizeInFlight = false;
+
+async function finalizeSurprise(order){
+  if(finalizeInFlight) return;
+  finalizeInFlight = true;
+
+  document.getElementById('pay-btn').disabled = true;
+  document.getElementById('pay-fail').style.display = 'none';
+  document.getElementById('pay-loading').style.display = 'flex';
+  setLoadingText('Checking your order…');
+
+  try{
+    // idempotency: if this payment already produced a row (e.g. a previous
+    // attempt got the DB insert through but failed before showing the link),
+    // reuse it instead of uploading again or double-billing the DB.
+    const existing = await withRetry(
+      ()=> sb.from('girlfriends_day').select('*').eq('payment_id', order.paymentId).limit(1),
+      { attempts: 2, baseDelay: 700 }
+    );
+    let row = existing.data && existing.data[0];
+
+    let urls;
+    if(row){
+      urls = [row.photo1, row.photo2, row.photo3];
+    } else {
+      urls = [];
+      for(let i=0;i<PHOTO_COUNT;i++){
+        if(!order.photos[i]){
+          urls.push(''); // no photo picked for this focus spot
+          continue;
+        }
+        setLoadingText(`Uploading photo ${i+1} of ${PHOTO_COUNT}…`);
+        const blob = dataUrlToBlob(order.photos[i]);
+        const path = `${crypto.randomUUID()}.jpg`;
+        await withRetry(async ()=>{
+          const { error: upErr } = await sb.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
+          if(upErr) throw upErr;
+        }, { attempts: 4, baseDelay: 1000, onAttempt: (n,total)=> n>1 && setLoadingText(`Uploading photo ${i+1} of ${PHOTO_COUNT} (retry ${n}/${total})…`) });
+        const { data: pub } = sb.storage.from('photos').getPublicUrl(path);
+        urls.push(pub.publicUrl);
+      }
+
+      setLoadingText('Saving your surprise…');
+      row = await withRetry(async ()=>{
+        const { data, error: dbErr } = await sb.from('girlfriends_day').insert({
+          recipient: order.recipient,
+          sender: order.sender,
+          message: order.message,
+          photo1: urls[0],
+          photo2: urls[1],
+          photo3: urls[2],
+          price: order.price,
+          coupon: order.coupon,
+          payment_id: order.paymentId,
+          paid: true
+        }).select().single();
+        if(dbErr) throw dbErr;
+        return data;
+      }, { attempts: 4, baseDelay: 1000, onAttempt: (n,total)=> n>1 && setLoadingText(`Saving your surprise (retry ${n}/${total})…`) });
+    }
+
+    const link = `${location.origin}${location.pathname}?id=${row.id}`;
+
+    document.getElementById('out-link').value = link;
+
+    document.getElementById('notif-sender-name').textContent = order.sender;
+    document.getElementById('env-title').textContent = `Happy Girlfriend's Day`;
+    document.getElementById('letter-name').textContent = order.recipient;
+    document.getElementById('letter-sender').textContent = order.sender;
+    state.message = order.message;
+    state.photos = urls;
+    populateBoard(state.photos);
+
+    clearOrderLocal();
+    document.getElementById('resume-banner').style.display = 'none';
+    goTo('step-linkout');
+  }catch(err){
+    console.error(err);
+    // order stays in localStorage — nothing is lost, user can retry any time
+    document.getElementById('pay-fail').style.display = 'block';
+  }finally{
+    finalizeInFlight = false;
+    document.getElementById('pay-btn').disabled = false;
+    document.getElementById('pay-loading').style.display = 'none';
+  }
+}
+
+function retryFinalize(){
+  const order = loadOrderLocal();
+  if(!order){
+    document.getElementById('pay-fail').style.display = 'none';
+    return;
+  }
+  finalizeSurprise(order);
+}
+
+function resumePendingOrder(){
+  const order = loadOrderLocal();
+  if(!order) return;
+  state.recipient = order.recipient; state.sender = order.sender; state.message = order.message;
+  goTo('step-payment');
+  currentPrice = order.price; appliedCoupon = order.coupon;
+  document.getElementById('pay-price').textContent = '₹' + currentPrice;
+  updatePayBtnLabel();
+  finalizeSurprise(order);
+}
+function discardPendingOrder(){
+  if(!confirm('Discard this paid order? This cannot be undone.')) return;
+  clearOrderLocal();
+  document.getElementById('resume-banner').style.display = 'none';
+}
+
+function copyLink(){
+  const inp = document.getElementById('out-link');
+  inp.select();
+  navigator.clipboard.writeText(inp.value).then(()=>{
+    const msg = document.getElementById('copy-msg');
+    msg.style.display = 'block';
+    setTimeout(()=> msg.style.display='none', 1800);
+  });
+}
+
+/* ---------- notification tap ---------- */
+function openNotification(){
+  goTo('step-envelope');
+}
+
+/* ---------- envelope ---------- */
+function openEnvelope(){
+  document.getElementById('env-flap').style.transform = 'scaleY(0)';
+  document.getElementById('env-hint').textContent = 'opening...';
+  setTimeout(()=> goTo('step-gif'), 550);
+}
+
+/* ---------- vision board: fills the 3 "focus" slots with the user's uploads.
+   The 2 secondary photos (photo.jpeg, photo1.jpeg) are static in the HTML. ---------- */
+function populateBoard(photos){
+  for(let i=0;i<PHOTO_COUNT;i++){
+    const img = document.getElementById(`board-photo-${i}`);
+    if(img) img.src = photos[i] || 'photo1.jpeg';
+  }
+}
+
+/* ---------- letter typewriter ---------- */
+let letterTypeTimer = null;
+function typewriterLetter(text){
+  const textEl = document.getElementById('letter-body-text');
+  const cursorEl = document.getElementById('letter-cursor');
+  const bodyEl = document.getElementById('letter-body');
+  if(!textEl) return;
+  if(letterTypeTimer){ clearInterval(letterTypeTimer); letterTypeTimer = null; }
+  textEl.textContent = '';
+  cursorEl.style.display = 'inline-block';
+  const chars = Array.from(text || '');
+  let i = 0;
+  letterTypeTimer = setInterval(()=>{
+    textEl.textContent += chars[i] || '';
+    i++;
+    bodyEl.scrollTop = bodyEl.scrollHeight;
+    if(i >= chars.length){
+      clearInterval(letterTypeTimer);
+      letterTypeTimer = null;
+      cursorEl.style.display = 'none';
+    }
+  }, 24);
+}
+
+/* ---------- clock (decorative, real local time) ---------- */
+(function tickClock(){
+  const el = document.getElementById('notif-clock');
+  function upd(){
+    const d = new Date();
+    let h = d.getHours()%12; if(h===0) h=12;
+    const m = String(d.getMinutes()).padStart(2,'0');
+    if(el) el.textContent = `${h}:${m}`;
+  }
+  upd(); setInterval(upd, 15000);
+})();
+
+/* ---------- nav ---------- */
+function goTo(id){
+  ['step-intake','step-payment','step-linkout','step-notifications','step-envelope','step-gif','step-letter','step-gallery','step-bootload'].forEach(s=>{
+    document.getElementById(s).style.display = 'none';
+  });
+  const el = document.getElementById(id);
+  el.style.display = 'flex';
+  el.classList.remove('fade-up'); void el.offsetWidth; el.classList.add('fade-up');
+  if(id === 'step-letter') typewriterLetter(state.message);
+}
+function restartFlow(){
+  document.getElementById('env-flap').style.transform = 'scaleY(1)';
+  document.getElementById('env-hint').textContent = 'tap to open';
+  goTo('step-intake');
+}
+function goBackTo(id){
+  // stepping back through the envelope must reset it, otherwise it looks
+  // already-opened next time it's shown
+  document.getElementById('env-flap').style.transform = 'scaleY(1)';
+  document.getElementById('env-hint').textContent = 'tap to open';
+  goTo(id);
+}
+
+/* ---------- viewer mode: ?id=<row uuid> (new, short) or ?d=<base64 payload> (legacy) ---------- */
+function renderViewer(recipient, sender, message, photos){
+  isViewerMode = true;
+  state.recipient = recipient;
+  state.sender = sender;
+  state.message = message;
+  state.photos = photos;
+
+  document.getElementById('notif-sender-name').textContent = sender;
+  document.getElementById('env-title').textContent = `Happy Girlfriend's Day`;
+  document.getElementById('letter-name').textContent = recipient;
+  document.getElementById('letter-sender').textContent = sender;
+  populateBoard(photos);
+
+  document.getElementById('gallery-actions').innerHTML = '<button class="btn-ghost" onclick="goTo(\'step-letter\')">← Back</button>';
+  document.getElementById('gallery-restart').style.display = 'none';
+  document.getElementById('notif-edit-btn').style.display = 'none';
+  document.getElementById('env-edit-btn').style.display = 'none';
+  goTo('step-notifications');
+}
+
+(async function initViewer(){
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
+  const d = params.get('d');
+
+  function bootError(msg){
+    document.getElementById('bootload-spinner').style.display = 'none';
+    document.getElementById('bootload-text').textContent = msg;
+    document.getElementById('bootload-retry').style.display = 'inline-block';
+  }
+
+  if(id){
+    try{
+      const { data, error } = await withRetry(
+        ()=> sb.from('girlfriends_day').select('*').eq('id', id).eq('paid', true).single(),
+        { attempts: 3, baseDelay: 800 }
+      );
+      if(error || !data) throw error || new Error('not found');
+      document.documentElement.classList.remove('viewer-boot');
+      renderViewer(data.recipient, data.sender, data.message, [data.photo1, data.photo2, data.photo3]);
+    }catch(err){
+      console.error('Could not load surprise', err);
+      bootError("Hmm, this link isn't loading. Check your connection and try again.");
+    }
+    return;
+  }
+
+  if(d){
+    try{
+      const payload = JSON.parse(decodeURIComponent(escape(atob(d))));
+      document.documentElement.classList.remove('viewer-boot');
+      renderViewer(payload.r, payload.s, payload.m, payload.p);
+    }catch(err){
+      console.error('Bad link payload', err);
+      bootError("This link looks broken. Ask for a new one.");
+    }
+    return;
+  }
+
+  // creator flow — surface any unfinished paid order so it's never silently lost
+  if(loadOrderLocal()) document.getElementById('resume-banner').style.display = 'block';
+})();
+</script>
+</body>
+</html>
