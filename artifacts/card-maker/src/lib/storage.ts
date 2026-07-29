@@ -4,7 +4,7 @@ export interface CardData {
   senderName: string;
   recipientName: string;
   message: string;
-  photos: string[]; // Base64
+  photos: string[]; // Base64, 3–5 entries
 }
 
 export interface CardPreferences {
@@ -32,7 +32,16 @@ export const storage = {
   getCard: (): CardData => {
     try {
       const data = localStorage.getItem('luminary_card');
-      return data ? { ...DEFAULT_CARD, ...JSON.parse(data) } : DEFAULT_CARD;
+      if (!data) return DEFAULT_CARD;
+      const parsed = JSON.parse(data);
+      // Ensure photos array is valid (3–5 entries)
+      if (!Array.isArray(parsed.photos) || parsed.photos.length < 3) {
+        parsed.photos = ['', '', ''];
+      }
+      if (parsed.photos.length > 5) {
+        parsed.photos = parsed.photos.slice(0, 5);
+      }
+      return { ...DEFAULT_CARD, ...parsed };
     } catch {
       return DEFAULT_CARD;
     }

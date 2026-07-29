@@ -31,7 +31,10 @@ function LuminaryApp() {
     if (hash) {
       const shared = shareLink.decode(hash);
       if (shared) {
-        setCardData({ ...storage.getCard(), ...shared.d, photos: ['', '', ''] }); // photos omitted in share
+        // photos omitted in share — preserve slot count from shared data if available
+        const photoCount = (shared.d as any)?.photoCount ?? 3;
+        const emptyPhotos = Array(Math.min(Math.max(photoCount, 3), 5)).fill('') as string[];
+        setCardData({ ...storage.getCard(), ...shared.d, photos: emptyPhotos });
         setPrefs(shared.p);
         setIsSharedView(true);
         setStep('board');

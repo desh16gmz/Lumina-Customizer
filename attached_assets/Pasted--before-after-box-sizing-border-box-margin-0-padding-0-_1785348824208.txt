@@ -1,0 +1,214 @@
+
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Inter',sans-serif;
+    background:#f6c9d6;
+    min-height:100vh;
+    display:flex;align-items:flex-start;justify-content:center;
+    padding:28px 14px 80px;
+  }
+  .font-display{font-family:'Playfair Display',serif}
+  .font-script{font-family:'Dancing Script',cursive}
+
+  /* ---- outer frame w/ bow+heart pattern ---- */
+  .frame{
+    width:100%;max-width:460px;
+    background:#7d1730;
+    border-radius:22px;
+    padding:16px;
+    position:relative;
+    box-shadow:0 24px 60px -20px rgba(90,10,30,.55);
+  }
+  .frame-pattern{
+    position:absolute;inset:0;border-radius:22px;
+    background-image:
+      radial-gradient(circle at 8% 12%, rgba(255,255,255,.05) 0 3px, transparent 4px),
+      radial-gradient(circle at 32% 30%, rgba(255,255,255,.05) 0 3px, transparent 4px),
+      radial-gradient(circle at 58% 10%, rgba(255,255,255,.05) 0 3px, transparent 4px),
+      radial-gradient(circle at 84% 26%, rgba(255,255,255,.05) 0 3px, transparent 4px),
+      radial-gradient(circle at 14% 54%, rgba(255,255,255,.05) 0 3px, transparent 4px),
+      radial-gradient(circle at 44% 68%, rgba(255,255,255,.05) 0 3px, transparent 4px),
+      radial-gradient(circle at 70% 52%, rgba(255,255,255,.05) 0 3px, transparent 4px),
+      radial-gradient(circle at 92% 74%, rgba(255,255,255,.05) 0 3px, transparent 4px),
+      radial-gradient(circle at 20% 88%, rgba(255,255,255,.05) 0 3px, transparent 4px),
+      radial-gradient(circle at 62% 92%, rgba(255,255,255,.05) 0 3px, transparent 4px);
+    pointer-events:none;
+  }
+  .frame-icons{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:22px}
+  .frame-icons svg{position:absolute;opacity:.16}
+
+  .card{
+    position:relative;z-index:1;
+    background:#fffaf5;
+    border-radius:16px;
+    min-height:560px;
+    display:flex;flex-direction:column;
+    overflow:hidden;
+  }
+
+  /* corner cherries */
+  .corner-deco{position:absolute;width:46px;height:52px;z-index:2;opacity:.92}
+  .corner-tr{top:14px;right:16px}
+  .corner-bl{bottom:14px;left:16px;transform:scaleX(-1)}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pop{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
+  .fade-up{animation:fadeUp .5s ease both}
+  .spinner{width:26px;height:26px;border-radius:50%;border:3px solid #ecc3cf;border-top-color:#b83b5e;animation:spin .8s linear infinite}
+
+  .btn{
+    padding:10px 26px;border-radius:24px;font-size:12px;font-weight:600;
+    letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;
+    border:1.5px solid #b83b5e;background:#b83b5e;color:#fff;font-family:'Inter',sans-serif;
+    transition:transform .15s,opacity .15s;
+  }
+  .btn:hover{transform:translateY(-1px)}
+  .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .btn-ghost{
+    padding:10px 26px;border-radius:24px;font-size:12px;font-weight:600;
+    letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;
+    border:1.5px solid #b83b5e;background:transparent;color:#b83b5e;font-family:'Inter',sans-serif;
+  }
+  .btn-sm{padding:8px 16px;font-size:11px}
+
+  .inp{
+    width:100%;padding:9px 12px;border-radius:9px;border:1.5px solid #ecc3cf;
+    font-size:14px;font-family:'Inter',sans-serif;outline:none;background:#fffdfb;
+  }
+  .inp:focus{border-color:#b83b5e}
+
+  .photo-slot{
+    border:1.5px dashed #ecc3cf;border-radius:12px;aspect-ratio:1/1;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    overflow:hidden;position:relative;background:#fffdfb;
+  }
+  .photo-slot img{width:100%;height:100%;object-fit:cover}
+
+  ::-webkit-scrollbar{width:0}
+
+  .write-cursor{
+    display:inline-block;width:1.5px;height:12px;background:#b83b5e;
+    margin-left:2px;vertical-align:-1px;animation:blinkCursor .9s steps(1) infinite;
+  }
+  @keyframes blinkCursor{50%{opacity:0}}
+
+  /* ---- phone lock-screen notifications (step 0.5) ---- */
+  .phone-bg{
+    flex:1;display:flex;flex-direction:column;align-items:center;
+    background:linear-gradient(180deg,#f6c9d6,#f3b4c8);
+    padding:26px 18px 30px;
+  }
+  .phone-time{color:#fff;text-align:center;margin-bottom:22px;text-shadow:0 2px 6px rgba(120,20,50,.25)}
+  .phone-time .hh{font-family:'Playfair Display',serif;font-size:44px;font-weight:700;line-height:1}
+  .phone-time .dd{font-size:12px;letter-spacing:1px;margin-top:4px;opacity:.9;font-family:'Inter',sans-serif}
+  .notif{
+    width:100%;max-width:320px;background:#fffaf5;border-radius:16px;
+    padding:11px 13px;display:flex;gap:10px;margin-bottom:10px;
+    box-shadow:0 10px 20px -10px rgba(120,20,50,.35);
+  }
+  .notif-ico{width:34px;height:34px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px}
+  .notif-body{flex:1;min-width:0}
+  .notif-top{display:flex;justify-content:space-between;font-size:9.5px;color:#b8718a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;font-family:'Inter',sans-serif}
+  .notif-sender{font-size:12.5px;font-weight:600;color:#3a0f1a;font-family:'Inter',sans-serif}
+  .notif-msg{font-size:11.5px;color:#6b3648;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'Inter',sans-serif}
+  .notif-target{
+    cursor:pointer;background:#fdeef0;border:1.5px solid #e28aa3;
+    animation:pop 1.6s ease-in-out infinite;
+  }
+  .notif-target .notif-ico{background:#b83b5e;color:#fff}
+  .phone-hint{color:#fff;font-size:13px;margin-top:14px;text-shadow:0 1px 4px rgba(120,20,50,.25);font-family:'Dancing Script',cursive}
+
+  /* ---- pinterest-style vision board (final step) ---- */
+  .board-masonry{column-count:2;column-gap:14px;padding:6px 4px 4px}
+  .board-item{break-inside:avoid;margin-bottom:16px}
+  .board-item.full-span{column-span:all}
+  .board-photo{background:#fffefd;padding:8px 8px 22px;border-radius:3px;box-shadow:0 12px 24px -10px rgba(184,59,94,.45);position:relative}
+  .board-photo img{width:100%;object-fit:cover;border-radius:1px;display:block;background:#f3d3da}
+  .board-photo.focus img{aspect-ratio:4/5}
+  .board-photo.side{width:80%;margin:0 auto}
+  .board-photo.side img{aspect-ratio:1/1}
+  .board-caption{position:absolute;left:50%;bottom:5px;transform:translateX(-50%);font-family:'Dancing Script',cursive;font-size:13px;font-weight:600;color:#b83b5e;white-space:nowrap}
+  .board-note{background:#fff8f4;border:1px solid #f3d3da;border-radius:10px;padding:13px 12px;box-shadow:0 10px 20px -12px rgba(184,59,94,.4);font-size:10.5px;color:#6b3648;line-height:1.6;text-align:left}
+  .board-note h4{font-family:'Dancing Script',cursive;font-size:16px;color:#b83b5e;margin-bottom:6px;font-weight:600;text-align:center}
+  .board-note ul{list-style:none;text-align:left}
+  .board-note li{margin-bottom:4px;padding-left:13px;position:relative}
+  .board-note li::before{content:'♥';position:absolute;left:0;top:1px;font-size:8px;color:#e28aa3}
+  .board-tape{position:absolute;width:44px;height:15px;background:rgba(247,214,222,.9);border:1px solid rgba(184,59,94,.15);top:-8px;left:50%;transform:translateX(-50%) rotate(-3deg);border-radius:2px;box-shadow:0 2px 3px rgba(0,0,0,.08);z-index:2}
+  .board-clip{position:absolute;top:-12px;right:14px;font-size:20px;transform:rotate(14deg);z-index:2;filter:drop-shadow(0 2px 2px rgba(0,0,0,.15))}
+  .board-heart{position:absolute;font-size:15px;z-index:2;filter:drop-shadow(0 1px 1px rgba(0,0,0,.12))}
+  .board-quote{font-family:'Playfair Display',serif;font-style:italic;font-size:13px;color:#3a0f1a;padding:16px 18px;background:#fdeef0;border-radius:12px;line-height:1.65;position:relative}
+  .board-quote::before,.board-quote::after{content:'"';font-family:'Playfair Display',serif;font-size:26px;color:#e28aa3;position:absolute}
+  .board-quote::before{top:2px;left:8px}
+  .board-quote::after{bottom:-14px;right:10px}
+  .board-ribbon{background:#b83b5e;color:#fff;border-radius:10px;padding:12px 10px;font-size:11px;letter-spacing:.3px;text-align:center;line-height:1.6}
+  .board-ribbon .font-script{font-size:16px;display:block;margin-top:2px}
+
+  /* shared-link boot state — kills the form flash before JS decides what to show */
+  html.viewer-boot #step-intake{display:none !important}
+  html.viewer-boot #step-bootload{display:flex !important}
+</style>
+</head>
+<body>
+
+<div class="frame" id="frame">
+  <div class="frame-pattern"></div>
+  <div class="frame-icons" id="frame-icons"></div>
+  <div class="card" id="card">
+
+    <!-- ============ STEP BOOT — SHARED LINK LOADING / ERROR ============ -->
+    <section id="step-bootload" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;padding:36px 26px;text-align:center">
+      <div class="spinner" id="bootload-spinner"></div>
+      <div style="margin-top:16px;font-size:12.5px;color:#b8718a" id="bootload-text">Opening your surprise…</div>
+      <button id="bootload-retry" class="btn btn-sm" style="display:none;margin-top:18px" onclick="location.reload()">Retry</button>
+    </section>
+
+    <!-- ============ STEP 0 — INTAKE ============ -->
+    <section id="step-intake" class="fade-up" style="padding:34px 26px;flex:1;display:flex;flex-direction:column">
+      <div id="resume-banner" style="display:none;background:#fff2f5;border:1.5px solid #ecc3cf;border-radius:12px;padding:12px 14px;margin-bottom:18px;font-size:12px;color:#8a4a5c">
+        <div style="margin-bottom:8px">You already paid for a surprise that didn't finish generating. Want to pick up where it left off?</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" style="flex:1" onclick="resumePendingOrder()">Resume</button>
+          <button class="btn-ghost btn-sm" style="flex:1" onclick="discardPendingOrder()">Discard</button>
+        </div>
+      </div>
+      <div class="font-display" style="font-size:24px;font-weight:700;color:#3a0f1a;text-align:center;margin-bottom:4px">Make Her Surprise</div>
+      <p style="text-align:center;color:#b8718a;font-size:12.5px;margin-bottom:22px">Three photos, a few words — that's all it takes.</p>
+
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <input id="in-recipient" class="inp" placeholder="Her name" />
+        <input id="in-sender" class="inp" placeholder="Your name" />
+
+        <div>
+          <div style="font-size:11px;color:#8a4a5c;font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">Three photos, for the board</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+            <div class="photo-slot" data-slot="0" onclick="pickPhoto(0)"><span style="font-size:10px;color:#d9a9b5;text-align:center;padding:0 6px">photo 1</span></div>
+            <div class="photo-slot" data-slot="1" onclick="pickPhoto(1)"><span style="font-size:10px;color:#d9a9b5;text-align:center;padding:0 6px">photo 2</span></div>
+            <div class="photo-slot" data-slot="2" onclick="pickPhoto(2)"><span style="font-size:10px;color:#d9a9b5;text-align:center;padding:0 6px">photo 3</span></div>
+          </div>
+          <input type="file" id="file-input" accept="image/*" class="hidden" style="display:none" />
+        </div>
+
+        <textarea id="in-message" class="inp" rows="7" style="resize:none">I know I don't say it enough, so let me say it properly today: you are, hands down, the best part of my life.
+
+You turn the most ordinary days into something worth remembering — a random Tuesday feels a little more magical just because you're in it. Your laugh is my favorite sound, your hugs are my favorite place, and your heart is honestly the softest, kindest thing I know.
+
+Thank you for choosing me, again and again, even on the days I don't make it easy. I promise to keep choosing you right back — today, tomorrow, and every ordinary Tuesday after that.
+
+Happy Girlfriend's Day, my love. You're stuck with me forever now. 💕</textarea>
+      </div>
+
+      <div id="intake-err" style="display:none;color:#c62828;font-size:12px;margin-top:10px">Add both names and a message first.</div>
+      <button class="btn" style="margin-top:20px;width:100%" onclick="startPreview()">Preview the Surprise →</button>
+    </section>
+
+    <!-- ============ STEP PAY — COUPON + PAYMENT ============ -->
+    <section id="step-payment" style="display:none;flex:1;flex-direction:column;padding:34px 26px">
+      <div class="font-display" style="font-size:22px;font-weight:700;color:#3a0f1a;text-align:center;margin-bottom:6px">Almost there</div>
+      <p style="text-align:center;color:#b8718a;font-size:12.5px;margin-bottom:26px">Unlock the link to send it to her.</p>
+
+      <div style="background:#fff2f5;border-radius:14px;padding:20px;text-align:center;margin-bottom:18px">
+        <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#b8718a;margin-bottom:6px">Total</div>
+        <div class="font-display" id="pay-price" style="font-size:34px;font-weight:700;color:#b83b5e">₹99</div>
+        <div id="pay-coupon-applied" style="display:none;font-size:11px;color:#4a8a5c;margin-top:4px"></div>
+      </div>
