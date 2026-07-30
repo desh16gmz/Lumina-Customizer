@@ -16,8 +16,6 @@ export function StepEnvelope({ cardData, onOpen }: StepEnvelopeProps) {
     setTimeout(onOpen, 700);
   };
 
-  const firstPhoto = cardData.photos.find(Boolean);
-
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -66,18 +64,16 @@ export function StepEnvelope({ cardData, onOpen }: StepEnvelopeProps) {
           className="w-full rounded-xl overflow-hidden relative border border-border"
           style={{ height: '168px', background: 'hsl(var(--card))' }}
         >
-          {/* Photo window */}
-          {firstPhoto ? (
-            <img
-              src={firstPhoto}
-              alt="preview"
-              className="w-full h-full object-cover opacity-90"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-accent">
-              <span className="text-5xl">💌</span>
-            </div>
-          )}
+          {/* Always show heart — no photo preview */}
+          <div className="w-full h-full flex items-center justify-center bg-accent">
+            <motion.span
+              className="text-6xl select-none"
+              animate={{ scale: [1, 1.12, 1] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              💗
+            </motion.span>
+          </div>
 
           {/* Gradient overlay */}
           <div

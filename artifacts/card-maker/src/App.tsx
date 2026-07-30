@@ -33,9 +33,13 @@ function LuminaryApp() {
     if (hash) {
       const shared = shareLink.decode(hash);
       if (shared) {
-        const photoCount = (shared.d as any)?.photoCount ?? 3;
-        const emptyPhotos = Array(Math.min(Math.max(photoCount, 3), 5)).fill('') as string[];
-        setCardData({ ...storage.getCard(), ...shared.d, photos: emptyPhotos });
+        // Restore photos from the shared payload (now compressed but real)
+        const sharedPhotos: string[] = Array.isArray(shared.d?.photos) ? shared.d.photos : [];
+        const photoCount = Math.min(Math.max(sharedPhotos.length, 3), 5);
+        const photos = sharedPhotos.length >= 3
+          ? sharedPhotos.slice(0, 5)
+          : Array(photoCount).fill('') as string[];
+        setCardData({ ...storage.getCard(), ...shared.d, photos });
         setPrefs(shared.p);
         setIsSharedView(true);
         setStep('phone');

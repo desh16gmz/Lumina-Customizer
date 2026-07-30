@@ -210,14 +210,22 @@ const QUOTE = "You're not just the person I chose — you're the one I'd choose 
 
 export function StepVisionBoard({ cardData, prefs, isSharedView, onReset }: StepVisionBoardProps) {
   const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
-  const handleShare = () => {
-    const hash = shareLink.encode(cardData, prefs);
-    const url = `${window.location.origin}${window.location.pathname}#${hash}`;
-    navigator.clipboard.writeText(url).then(() => {
+  const handleShare = async () => {
+    if (sharing) return;
+    setSharing(true);
+    try {
+      const hash = await shareLink.encode(cardData, prefs);
+      const url = `${window.location.origin}${window.location.pathname}#${hash}`;
+      await navigator.clipboard.writeText(url);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    });
+      setTimeout(() => setCopied(false), 3000);
+    } catch (e) {
+      console.error('Share failed', e);
+    } finally {
+      setSharing(false);
+    }
   };
 
   const photos = cardData.photos; // 3–5 slots
@@ -248,10 +256,11 @@ export function StepVisionBoard({ cardData, prefs, isSharedView, onReset }: Step
         {!isSharedView && (
           <button
             onClick={handleShare}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-full font-semibold text-sm shadow-lg shadow-primary/25 hover:-translate-y-0.5 hover:shadow-primary/40 active:translate-y-0 transition-all"
+            disabled={sharing}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-full font-semibold text-sm shadow-lg shadow-primary/25 hover:-translate-y-0.5 hover:shadow-primary/40 active:translate-y-0 transition-all disabled:opacity-70 disabled:cursor-wait"
           >
-            <Share2 className="w-4 h-4" />
-            {copied ? '✓ Link Copied!' : 'Share this Surprise'}
+            <Share2 className={`w-4 h-4 ${sharing ? 'animate-spin' : ''}`} />
+            {sharing ? 'Preparing…' : copied ? '✓ Link Copied!' : 'Share this Surprise'}
           </button>
         )}
         <button
@@ -331,9 +340,38 @@ export function StepVisionBoard({ cardData, prefs, isSharedView, onReset }: Step
           <NoteCard title={NOTE_2.title} items={NOTE_2.items} rotate={-2} />
         </motion.div>
 
+        {/* Middle message card — only shown for 4-5 photos */}
+        {photoCount >= 4 && (
+          <motion.div {...itemDelay(6)} className="board-masonry-full">
+            <div
+              className="rounded-xl p-5 text-center relative overflow-hidden"
+              style={{
+                background: 'hsl(var(--primary)/0.08)',
+                border: '1.5px dashed hsl(var(--primary)/0.35)',
+              }}
+            >
+              <motion.span
+                className="absolute top-2 right-3 text-base select-none"
+                animate={{ scale: [1, 1.3, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                💗
+              </motion.span>
+              <p className="font-handwriting text-2xl mb-1" style={{ color: 'hsl(var(--primary))' }}>
+                {cardData.message
+                  ? cardData.message.split(/[.!?\n]/)[0].trim().slice(0, 80)
+                  : `You are the best part of every day`}
+              </p>
+              <p className="text-[10px] uppercase tracking-[2px] text-muted-foreground mt-2">
+                — {cardData.senderName || 'with love'}
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         {/* Photo 3 (if exists) */}
         {photoCount >= 4 && (
-          <motion.div {...itemDelay(6)} className="board-masonry-item">
+          <motion.div {...itemDelay(7)} className="board-masonry-item">
             <PolaroidPhoto
               src={photos[3]}
               caption={CAPTIONS[3]}
