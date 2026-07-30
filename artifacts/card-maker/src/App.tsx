@@ -30,10 +30,12 @@ function LuminaryApp() {
   // Initialization: check hash for shared link
   useEffect(() => {
     const hash = window.location.hash;
-    if (hash) {
-      const shared = shareLink.decode(hash);
-      if (shared) {
-        // Restore photos from the shared payload (now compressed but real)
+    if (!hash) return;
+
+    // New-style: #card=<uuid> — fetch full card (with original photos) from API
+    const cardId = shareLink.parseHash(hash);
+    if (cardId) {
+      shareLink.fetch(cardId).then((shared) => {
         const sharedPhotos: string[] = Array.isArray(shared.d?.photos) ? shared.d.photos : [];
         const photoCount = Math.min(Math.max(sharedPhotos.length, 3), 5);
         const photos = sharedPhotos.length >= 3
@@ -43,7 +45,24 @@ function LuminaryApp() {
         setPrefs(shared.p);
         setIsSharedView(true);
         setStep('phone');
-      }
+      }).catch((err) => {
+        console.error('Failed to load shared card', err);
+      });
+      return;
+    }
+
+    // Legacy-style: base64-encoded hash (no photos, kept for old links)
+    const shared = shareLink.decodeLegacy(hash);
+    if (shared) {
+      const sharedPhotos: string[] = Array.isArray(shared.d?.photos) ? shared.d.photos : [];
+      const photoCount = Math.min(Math.max(sharedPhotos.length, 3), 5);
+      const photos = sharedPhotos.length >= 3
+        ? sharedPhotos.slice(0, 5)
+        : Array(photoCount).fill('') as string[];
+      setCardData({ ...storage.getCard(), ...shared.d, photos });
+      setPrefs(shared.p);
+      setIsSharedView(true);
+      setStep('phone');
     }
   }, []);
 

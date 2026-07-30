@@ -5,55 +5,49 @@ export interface SharedCard {
   p: CardPreferences;
 }
 
-/** Compress a single base64 data-URL to a small JPEG. Returns '' for empty. */
-export const compressPhoto = (dataUrl: string, maxSide = 280, quality = 0.45): Promise<string> => {
-  return new Promise((resolve) => {
-    if (!dataUrl) { resolve(''); return; }
-    const img = new Image();
-    img.onload = () => {
-      const ratio = Math.min(maxSide / img.width, maxSide / img.height, 1);
-      const w = Math.max(1, Math.round(img.width * ratio));
-      const h = Math.max(1, Math.round(img.height * ratio));
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { resolve(dataUrl); return; }
-      ctx.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', quality));
-    };
-    img.onerror = () => resolve('');
-    img.src = dataUrl;
-  });
-};
+const API_BASE = '/api';
 
 export const shareLink = {
-  /** Async encode — compresses photos so they fit in the URL hash. */
-  encode: async (card: CardData, prefs: CardPreferences): Promise<string> => {
-    try {
-      const compressedPhotos = await Promise.all(
-        card.photos.map(p => compressPhoto(p))
-      );
-      const payload: SharedCard = {
-        d: { ...card, photos: compressedPhotos },
-        p: prefs,
-      };
-      const jsonStr = JSON.stringify(payload);
-      return btoa(unescape(encodeURIComponent(jsonStr)));
-    } catch (e) {
-      console.error('Failed to encode share link', e);
-      return '';
-    }
+  /**
+   * Upload the full card (including original-quality photos) to the API server.
+   * Returns the shareable URL with a short card ID.
+   */
+  upload: async (card: CardData, prefs: CardPreferences): Promise<string> => {
+    const payload: SharedCard = { d: card, p: prefs };
+    const res = await fetch(`${API_BASE}/cards`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    const { id } = await res.json();
+    return `${window.location.origin}${window.location.pathname}#card=${id}`;
   },
 
-  decode: (hash: string): SharedCard | null => {
-    if (!hash || hash.length < 2) return null;
-    const base64Str = hash.startsWith('#') ? hash.slice(1) : hash;
+  /**
+   * Fetch a shared card from the API server by ID.
+   */
+  fetch: async (id: string): Promise<SharedCard> => {
+    const res = await fetch(`${API_BASE}/cards/${encodeURIComponent(id)}`);
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    return res.json();
+  },
+
+  /** Read the card ID from the URL hash if present. */
+  parseHash: (hash: string): string | null => {
+    const h = hash.startsWith('#') ? hash.slice(1) : hash;
+    const params = new URLSearchParams(h);
+    return params.get('card');
+  },
+
+  // ── Legacy hash-based decode (kept for old links) ─────────────────────
+  decodeLegacy: (hash: string): SharedCard | null => {
+    const h = hash.startsWith('#') ? hash.slice(1) : hash;
+    if (h.startsWith('card=')) return null; // new-style, not legacy
     try {
-      const jsonStr = decodeURIComponent(escape(atob(base64Str)));
+      const jsonStr = decodeURIComponent(escape(atob(h)));
       return JSON.parse(jsonStr) as SharedCard;
-    } catch (e) {
-      console.error('Failed to decode share link', e);
+    } catch {
       return null;
     }
   },

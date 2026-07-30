@@ -216,8 +216,7 @@ export function StepVisionBoard({ cardData, prefs, isSharedView, onReset }: Step
     if (sharing) return;
     setSharing(true);
     try {
-      const hash = await shareLink.encode(cardData, prefs);
-      const url = `${window.location.origin}${window.location.pathname}#${hash}`;
+      const url = await shareLink.upload(cardData, prefs);
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
